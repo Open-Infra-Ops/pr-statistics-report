@@ -43,7 +43,7 @@ html_template = textwrap.dedent("""
 
         .table-detail {
             left: 20px;
-            position: absolute;
+            bottom: 20px
         }
     </style>
 </head>
@@ -87,6 +87,7 @@ class Config(object):
     email_user = os.getenv("user")
     email_pwd = os.getenv("pwd")
     email_from = os.getenv("from")
+    debug = os.getenv("debug")
     html_template_file = "./template.html"
     char_split = "、"
     clone_dir = "/root/tc"
@@ -399,6 +400,13 @@ def pandas_clean(pr_info_list):
             list_data.append(dict_data)
             exist_pr.append(pr_info_temp["pr_diff"])
     sort_list = sorted(list_data, key=lambda x: (x["仓库"], int(x["开启天数"])), reverse=True)
+    for pr_info_temp in sort_list:
+        status = pr_info_temp["状态"]
+        color = status_color_positive_green(status)
+        pr_info_temp["状态"] = '<font style="{}">{}</font>'.format(color, status)
+        duration = pr_info_temp["开启天数"]
+        color = duration_color_positive_green(duration)
+        pr_info_temp["开启天数"] = '<font style="{}">{}</font>'.format(color, duration)
     return sort_list
 
 
@@ -539,7 +547,6 @@ def clone_object():
 def send_email(owner_repo_dict, user_email_dict):
     """send email"""
     logger.info("-" * 25 + "start to send email" + "-" * 25)
-    email_impl = EmailImplement()
     pd.set_option('display.width', 800)
     pd.set_option('colheader_justify', 'center')
     pd.options.display.html.border = 2
@@ -547,18 +554,19 @@ def send_email(owner_repo_dict, user_email_dict):
         gitee_email = list(set(user_email_dict[gitee_name]))
         new_pr_info = pandas_clean(pr_info_list)
         df = pd.DataFrame.from_dict(new_pr_info)
-        df_style = df.style.applymap(status_color_positive_green, subset=["状态"])
-        df_style = df_style.applymap(duration_color_positive_green, subset=["开启天数"])
-        df_style = df_style.hide_index()
+        # df_style = df.style.applymap(status_color_positive_green, subset=["状态"])
+        # df_style = df_style.applymap(duration_color_positive_green, subset=["开启天数"])
+        df_style = df.style.hide_index()
         html = df_style.render()
         content = div_template.format(gitee_name, html)
         template_content = html_template.replace(r"{{template}}", content)
         # it is for test
-        if os.getenv("debug"):
+        if Config.debug:
             if not os.path.exists("file"):
                 os.mkdir("file")
             with open("file/{}.html".format(gitee_name), "w+", encoding="utf-8") as f:
                 f.write(template_content)
+        email_impl = EmailImplement()
         email_impl.send_email(gitee_email, template_content)
 
 
