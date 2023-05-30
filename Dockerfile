@@ -1,14 +1,15 @@
-FROM openeuler/openeuler:21.03
+FROM openeuler/openeuler:22.03-lts-sp1
 
-MAINTAINER liuqi<469227928@qq.com>
+MAINTAINER TomNewChao<tom_toworld@163.com>
 
-RUN yum update && \
-yum install -y python3-pip git
+RUN mkdir -p /opt/pr-statistics
 
-RUN pip3 install requests openpyxl pandas PyYAML xlsx2html
+COPY . /opt/pr-statistics/
 
-WORKDIR /work/pr-statistics
+RUN yum update -y && yum install -y python3-pip git
 
-COPY pr_statistics.py /work/pr-statistics
+RUN pip3 install -r /opt/pr-statistics/requirements.txt
 
-ENTRYPOINT ["python3", "pr_statistics.py"] 
+WORKDIR /opt/pr-statistics
+
+ENTRYPOINT ["python3", "/opt/pr-statistics/pr_statistics.py"]
