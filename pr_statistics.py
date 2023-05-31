@@ -292,6 +292,8 @@ def count_duration(start_time):
     today = datetime.datetime.today()
     start_date = datetime.datetime.strptime(start_time, '%Y-%m-%dT%H:%M:%S+08:00')
     duration = str((today - start_date).days)
+    if int(duration) < 0:
+        duration = '0'
     return duration
 
 
