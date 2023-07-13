@@ -93,6 +93,7 @@ class Config(object):
     clone_dir = "/root/tc"
     clone_cmd = "cd /root && git clone https://gitee.com/opengauss/tc"
     gauss_relationship_path = "/root/tc/gauss_relationship.yaml"
+    black_path = "blacklist.yaml"
 
 
 class EmailImplement(object):
@@ -546,13 +547,15 @@ def clone_object():
 
 # noinspection PyTypeChecker
 @calc_time
-def send_email(owner_repo_dict, user_email_dict):
+def send_email(owner_repo_dict, user_email_dict, blacklist):
     """send email"""
     logger.info("-" * 25 + "start to send email" + "-" * 25)
     pd.set_option('display.width', 800)
     pd.set_option('colheader_justify', 'center')
     pd.options.display.html.border = 2
     for gitee_name, pr_info_list in owner_repo_dict.items():
+        if gitee_name in blacklist:
+            continue
         gitee_email = list(set(user_email_dict[gitee_name]))
         new_pr_info = pandas_clean(pr_info_list)
         df = pd.DataFrame.from_dict(new_pr_info)
@@ -600,11 +603,13 @@ def main():
     3. send email to owner.
     :return: None
     """
+    blacklist = load_yaml(Config.black_path)
+    blacklist = [name.strip() for name in blacklist]
     sig_dict, relationship = clone_object()
     relationship_dict = parse_relationship_config(relationship)
     merge_sig_dict(sig_dict, relationship_dict)
     owner_repo_dict, user_email_dict = owner_repo_info(relationship_dict)
-    send_email(owner_repo_dict, user_email_dict)
+    send_email(owner_repo_dict, user_email_dict, blacklist)
 
 
 if __name__ == '__main__':
