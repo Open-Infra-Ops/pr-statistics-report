@@ -106,7 +106,7 @@ class EmailImplement(object):
     def send_email(self, receivers, body_of_email):
         """send email"""
         if not isinstance(receivers, list):
-            receivers = [receivers,]
+            receivers = [receivers, ]
         content = MIMEText(body_of_email, 'html', 'utf-8')
         msg = MIMEMultipart()
         msg.attach(content)
@@ -198,6 +198,13 @@ def load_yaml(file_path, method="load"):
         return yaml_load_method(file, Loader=yaml.FullLoader)
 
 
+def read_path(path):
+    """read the content from path"""
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    return content
+
+
 @calc_time
 def parse_relationship_config(relationship):
     """
@@ -212,7 +219,6 @@ def parse_relationship_config(relationship):
             }
         }
     """
-    logger.info("-" * 25 + "start to parse relationship config" + "-" * 25)
     relationship_dict = defaultdict(dict)
     for sig_info in relationship.get("sigs", []):
         sig_label = sig_info["sig_label"].lower()
@@ -334,19 +340,26 @@ def parse_pr_diff_info(repo_name, content):
     return list(path_set)
 
 
-def parse_owner_pr_info(relationship_dict, pr_list):
+def parse_owner_pr_info(sig_owners_dict, sig_readme_dict, relationship_dict, pr_list):
     """
     parse owner pr info
+    :param sig_owners_dict:
+    {
+        sig-name: { repo: gitee}
+    }
+    :param sig_readme_dict:
+    {
+        sig-name: { gitee: email}
+    }
     :param relationship_dict:
     {
         sig-label: {
             sig_name: "OM",
-            files: {file: [(gittee_id, email), ]}
-            repo:  {repo_name: [(gittee_id, email), ]}
-            detail:  [(gitee_id, email), (gitee_id, email), (gitee_id, email)]
+            files: {file: [(gittee, email), ]}
+            repo:  {repo_name: [(gittee, email), ]}
         }
     }
-    :param pr_list:
+    :param pr_list
     :return:
     """
     owner_repo_dict = defaultdict(list)
@@ -354,21 +367,22 @@ def parse_owner_pr_info(relationship_dict, pr_list):
     for index, pr in enumerate(pr_list):
         logger.info("{}:start to req:{}".format(str(index), pr["pr_diff"]))
         try:
-            pr_diff = pr["pr_diff"]
             pr_labels = pr["label"]
+            pr_diff = pr["pr_diff"]
             pr_repo_name = pr["repo_name"]
             if len(pr_labels) != 1:
-                logger.error("There find invalid label amount in pr:{}".format(pr_diff))
-                continue
-            if pr_labels[0] not in relationship_dict.keys():
-                logger.error("There find invalid label in pr:{}".format(pr_diff))
+                logger.error("Invalid label amount in pr:{}".format(pr_diff))
                 continue
             pr_label = pr_labels[0]
+            if pr_label not in relationship_dict.keys():
+                logger.error("Invalid label in pr:{}".format(pr_diff))
+                continue
             resp = request_url(pr_diff)
             path_list = parse_pr_diff_info(pr_repo_name, resp.content)
             files_dict = relationship_dict[pr_label]["files"]
             repo_dict = relationship_dict[pr_label]["repo"]
-            detail_list = relationship_dict[pr_label]["detail"]
+            sig_name = relationship_dict[pr_label]["sig_name"].lower()
+            # 1.select the first owner
             is_in_path = False
             for path in path_list:
                 if path in files_dict.keys():
@@ -376,13 +390,28 @@ def parse_owner_pr_info(relationship_dict, pr_list):
                         owner_repo_dict[gitee_name].append(pr)
                         user_email_dict[gitee_name].append(email)
                         is_in_path = True
-            if not is_in_path and pr_repo_name.lower() in repo_dict.keys():
-                for gitee_name, email in repo_dict[pr_repo_name.lower()]:
+            pr_repo_name = pr_repo_name.lower()
+            if not is_in_path and pr_repo_name in repo_dict.keys():
+                for gitee_name, email in repo_dict[pr_repo_name]:
                     owner_repo_dict[gitee_name].append(pr)
                     user_email_dict[gitee_name].append(email)
-            for gitee_name, email in detail_list:
+            # 2.select the maintainer and committer
+            if not sig_readme_dict.get(sig_name):
+                logger.error("Invalid sig-name:{} in pr:{}".format(sig_name, pr_diff))
+                continue
+            repo_dict = sig_owners_dict.get(sig_name)
+            if repo_dict is not None:
+                gitee_name = repo_dict.get(pr_repo_name)
+                email = sig_readme_dict[sig_name].get(gitee_name)
+                if not email:
+                    logger.error("Invalid sig-name:{}/gitee_name:{} in pr:{}".format(sig_name, gitee_name, pr_diff))
+                    continue
                 owner_repo_dict[gitee_name].append(pr)
                 user_email_dict[gitee_name].append(email)
+            else:
+                for gitee_name, email in sig_readme_dict[sig_name].items():
+                    owner_repo_dict[gitee_name].append(pr)
+                    user_email_dict[gitee_name].append(email)
         except requests.RequestException as e:
             logger.error("pr:{}, err:{}, traceback:{}".format(str(pr), e, traceback.format_exc()))
     return owner_repo_dict, user_email_dict
@@ -414,12 +443,11 @@ def pandas_clean(pr_info_list):
 
 
 @calc_time
-def owner_repo_info(relationship_dict):
-    """parse pr info"""
-    logger.info("-" * 25 + "start to parse pr infor" + "-" * 25)
+def request_all_pr():
+    """request all the pr"""
     pr_info_list = get_pr_info()
     pr_list = parse_pr_info(pr_info_list)
-    return parse_owner_pr_info(relationship_dict, pr_list)
+    return pr_list
 
 
 def status_color_positive_green(val):
@@ -462,19 +490,32 @@ def duration_color_positive_green(val):
     return 'background-color:%s' % color
 
 
-def parse_owner_info(owner_content):
+def parse_readme_info(readme_content):
     """parse maintainer and committer from content"""
-    owner_list = list()
-    for content in owner_content.split("\n"):
+    readme_dict = dict()
+    for content in readme_content.split("\n"):
         if content.startswith(r"-"):
             owner = re.findall(r"\((.*?)\)", content)
             email = re.findall(r"\*(.*?)\*", content)
             if owner and email:
                 owner = owner[0].split(r"/")[-1]
-                owner_list.append((owner, email[0]))
-            else:
-                logger.info("parse_owner_info match not find msg:{}".format(content))
-    return owner_list
+                readme_dict[owner] = email[0]
+    return readme_dict
+
+
+def parse_owner_info(owner_obj):
+    """parse owner info from conent"""
+    owner_dict = dict()
+    repos_list = owner_obj.get("repositories")
+    if repos_list is not None:
+        for repos in repos_list:
+            all_memerber = list()
+            all_memerber.extend(repos["maintainers"])
+            all_memerber.extend(repos["committers"])
+            for repo in repos["repo"]:
+                repo_lower = repo.split(r"/")[-1].lower()
+                owner_dict[repo_lower] = all_memerber
+    return owner_dict
 
 
 def parse_repo_info(repo_content):
@@ -487,45 +528,47 @@ def parse_repo_info(repo_content):
     return repo_list
 
 
-def parse_sig_info(readme_file_path_list):
+def parse_sig_info(readme_path_list, owners_path_list):
     """
     parse the tc object,get the dict data
-    :param readme_file_path_list: list, [path1, path2, path3]
-    :return: dict, {sig-name: [(gitee_id, email), (gitee_id, email), (gitee_id, email)]}
+    :param readme_path_list: list, [path1, path2, path3]
+    :param owners_path_list: list, [path1, path2, path3]
+    :return: sig_owners_dict, sig_readme_dict
     """
-    sig_dict = defaultdict(list)
-    for readme_file_path in readme_file_path_list:
-        owner_list = list()
-        with open(readme_file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        content = content.split("Maintainer列表")
-        content = content[-1].split("Committer列表")
-        maintainers = content[0]
-        content = content[-1].split("联系方式")
-        committer = content[0]
-        maintainers_list = parse_owner_info(maintainers)
-        owner_list.extend(maintainers_list)
-        committer_list = parse_owner_info(committer)
-        owner_list.extend(committer_list)
-        sig_name = readme_file_path.split(r"/")[-2]
-        if not owner_list or not sig_name:
-            logger.info("parse_sig_info find empty info, and path is:{}".format(readme_file_path))
+    sig_owners_dict = dict()
+    sig_readme_dict = defaultdict(dict)
+    # 1.read the owners
+    for owners_path in owners_path_list:
+        owner_obj = load_yaml(owners_path)
+        owner_dict = parse_owner_info(owner_obj)
+        sig_name = owners_path.split(r"/")[-2].lower()
+        if not sig_name or not owner_dict:
+            logger.info("parse owners find empty info, and path is:{}".format(owners_path))
             continue
-        sig_dict[sig_name.lower()] = owner_list
-    return sig_dict
+        sig_owners_dict[sig_name] = owner_dict
+    # 2.read the readme
+    for readme_path in readme_path_list:
+        content = read_path(readme_path)
+        readme_owner_dict = parse_readme_info(content)
+        sig_name = readme_path.split(r"/")[-2].lower()
+        if not readme_owner_dict or not sig_name:
+            logger.info("parse readme find empty info, and path is:{}".format(readme_path))
+            continue
+        sig_readme_dict[sig_name] = readme_owner_dict
+    return sig_owners_dict, sig_readme_dict
 
 
 @calc_time
 @func_retry()
 def clone_object():
     """clone the tc object"""
-    logger.info("-" * 25 + "start to clone tc rep" + "-" * 25)
+    # clone object
     if os.path.exists(Config.clone_dir):
         shutil.rmtree(Config.clone_dir)
     ret, out, err = execute_cmd(Config.clone_cmd)
     if ret != 0:
         raise RuntimeError("clone object failed, err:{}".format(err))
-    readme_file_path_list = list()
+    readme_path_list, owners_path_list = list(), list()
     for dir_path, _, filenames in os.walk(Config.clone_dir):
         if ".gitee" in dir_path:
             continue
@@ -534,15 +577,20 @@ def clone_object():
                 abs_path = os.path.join(dir_path, filename)
                 if "sigs/Template/README.md" in abs_path:
                     continue
-                readme_file_path_list.append(abs_path)
+                readme_path_list.append(abs_path)
+            elif filename == "OWNERS":
+                abs_path = os.path.join(dir_path, filename)
+                if "sigs" not in abs_path:
+                    continue
+                owners_path_list.append(abs_path)
     logger.info("-" * 25 + "start to parse tc rep" + "-" * 25)
     # read maintainers and committer from tc sigs
-    sig_dict = parse_sig_info(readme_file_path_list)
+    sig_owners_dict, sig_readme_dict = parse_sig_info(readme_path_list, owners_path_list)
     # read guass_relationship
-    relationship = load_yaml(Config.gauss_relationship_path)
+    relationship_obj = load_yaml(Config.gauss_relationship_path)
     if os.path.exists(Config.clone_dir):
         shutil.rmtree(Config.clone_dir)
-    return sig_dict, relationship
+    return sig_owners_dict, sig_readme_dict, relationship_obj
 
 
 # noinspection PyTypeChecker
@@ -575,26 +623,6 @@ def send_email(owner_repo_dict, user_email_dict, blacklist):
         email_impl.send_email(gitee_email, template_content)
 
 
-def merge_sig_dict(sig_dict, relationship_dict):
-    """
-
-    :param sig_dict:
-    {sig-name: [(gitee_id, email), (gitee_id, email), (gitee_id, email)]}
-    :param relationship_dict:
-    {
-        sig-label: {
-            sig_name: "OM",
-            files: {file: [(gittee_id, email), ]}
-            repo:  {repo_name: [(gittee_id, email), ]}
-        }
-    }
-    :return:
-    """
-    for sig_label, sig_info in relationship_dict.items():
-        if sig_info["sig_name"] in sig_dict.keys():
-            relationship_dict[sig_label]["detail"] = sig_dict[sig_info["sig_name"]]
-
-
 @calc_time
 def main():
     """
@@ -603,12 +631,16 @@ def main():
     3. send email to owner.
     :return: None
     """
+    logger.info("-" * 25 + "start to read blacklist" + "-" * 25)
     blacklist = load_yaml(Config.black_path)
     blacklist = [name.strip() for name in blacklist]
-    sig_dict, relationship = clone_object()
-    relationship_dict = parse_relationship_config(relationship)
-    merge_sig_dict(sig_dict, relationship_dict)
-    owner_repo_dict, user_email_dict = owner_repo_info(relationship_dict)
+    logger.info("-" * 25 + "start to clone tc rep and parse" + "-" * 25)
+    sig_owners_dict, sig_readme_dict, relationship_obj = clone_object()
+    relationship_dict = parse_relationship_config(relationship_obj)
+    logger.info("-" * 25 + "start to request pr" + "-" * 25)
+    pr_list = request_all_pr()
+    logger.info("-" * 25 + "start to statistics the devs" + "-" * 25)
+    owner_repo_dict, user_email_dict = parse_owner_pr_info(sig_owners_dict, sig_readme_dict, relationship_dict, pr_list)
     send_email(owner_repo_dict, user_email_dict, blacklist)
 
 
