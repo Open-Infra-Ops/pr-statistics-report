@@ -343,8 +343,14 @@ def get_need_close_and_notify_issue(token, close_day, notify_day, issue_list):
 
 def close_issue(token, need_close_issues):
     gitee_request = GiteeRequest(token)
+    list_exist_id = list()
     for issue in need_close_issues:
         if issue["orgination"] and issue["repo"]:
+            issue_id = issue["issue_id"]
+            if issue_id in list_exist_id:
+                continue
+            else:
+                list_exist_id.append(issue_id)
             # comment
             gitee_request.request_comment_issue(issue["orgination"], issue["repo"], issue["issue_id"])
             # close
