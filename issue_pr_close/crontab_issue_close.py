@@ -96,29 +96,6 @@ cur_file_name = "{}.log".format(os.path.basename(__file__).split(".")[0])
 logger = Logger(cur_file_name, level='info').logger
 
 
-class EmailImplement(object):
-    def __init__(self, email_host, email_port, email_username, email_pwd):
-        self.server = smtplib.SMTP(email_host, int(email_port))
-        self.server.ehlo()
-        self.server.starttls()
-        self.server.login(email_username, email_pwd)
-
-    def send_email(self, email_from, email_receivers, subject, body_of_email):
-        if not isinstance(email_receivers, list):
-            email_receivers = [email_receivers, ]
-        content = MIMEText(body_of_email, 'html', 'utf-8')
-        msg = MIMEMultipart()
-        msg.attach(content)
-        msg['Subject'] = subject
-        msg['From'] = email_from
-        msg['To'] = ",".join(email_receivers)
-        try:
-            self.server.sendmail(email_from, email_receivers, msg.as_string())
-            logger.info('Success sent report email to: {}'.format(msg['To']))
-        except smtplib.SMTPException as e:
-            logger.error(e)
-
-
 def func_retry(retry=3, delay=1):
     def deco_retry(fn):
         @wraps(fn)
@@ -136,6 +113,30 @@ def func_retry(retry=3, delay=1):
         return inner
 
     return deco_retry
+
+
+class EmailImplement(object):
+    def __init__(self, email_host, email_port, email_username, email_pwd):
+        self.server = smtplib.SMTP(email_host, int(email_port))
+        self.server.ehlo()
+        self.server.starttls()
+        self.server.login(email_username, email_pwd)
+
+    @func_retry()
+    def send_email(self, email_from, email_receivers, subject, body_of_email):
+        if not isinstance(email_receivers, list):
+            email_receivers = [email_receivers, ]
+        content = MIMEText(body_of_email, 'html', 'utf-8')
+        msg = MIMEMultipart()
+        msg.attach(content)
+        msg['Subject'] = subject
+        msg['From'] = email_from
+        msg['To'] = ",".join(email_receivers)
+        try:
+            self.server.sendmail(email_from, email_receivers, msg.as_string())
+            logger.info('Success sent report email to: {}'.format(msg['To']))
+        except smtplib.SMTPException as e:
+            logger.error(e)
 
 
 class GiteeRequest:
