@@ -157,7 +157,7 @@ class GiteeRequest:
     @func_retry()
     def request_open_issue(self, page):
         url = self.request_open_issue_url.format(self.token, page)
-        resp = requests.get(url=url, headers=self.hearder, verify=self.verify)
+        resp = requests.get(url=url, headers=self.hearder, verify=self.verify, timeout=(300, 300))
         if not str(resp.status_code).startswith("2"):
             raise Exception("[request_open_issue] request return code:{}".format(resp.status_code))
         return resp.json()
@@ -165,7 +165,7 @@ class GiteeRequest:
     @func_retry()
     def request_progressing_issue(self, page):
         url = self.request_progressing_issue_url.format(self.token, page)
-        resp = requests.get(url=url, headers=self.hearder, verify=self.verify)
+        resp = requests.get(url=url, headers=self.hearder, verify=self.verify, timeout=(300, 300))
         if not str(resp.status_code).startswith("2"):
             raise Exception("[request_progressing_issue_url] request return code:{}".format(resp.status_code))
         return resp.json()
@@ -173,7 +173,7 @@ class GiteeRequest:
     @func_retry()
     def requst_issue_comments(self, url, page):
         url = self.request_issue_comments_url.format(url, self.token, page)
-        resp = requests.get(url, headers=self.hearder, verify=self.verify)
+        resp = requests.get(url, headers=self.hearder, verify=self.verify, timeout=(300, 300))
         if not str(resp.status_code).startswith("2"):
             raise Exception("[requst_issue_comments] request return code:{}".format(resp.status_code))
         return resp.json()
@@ -182,7 +182,7 @@ class GiteeRequest:
     def request_close_issue(self, issue_id):
         url = self.request_close_issue_url.format(issue_id)
         body = {"access_token": self.token, "state": "closed"}
-        resp = requests.patch(url=url, headers=self.hearder, json=body, verify=self.verify)
+        resp = requests.patch(url=url, headers=self.hearder, json=body, verify=self.verify, timeout=(300, 300))
         if not str(resp.status_code).startswith("2"):
             raise Exception(
                 "[request_close_issue] request return code:{}".format(resp.status_code))
@@ -190,7 +190,7 @@ class GiteeRequest:
 
     @func_retry()
     def request_issue_label(self, issue_id, page):
-        url = self.request_issue_label_url.format(issue_id, self.token, page)
+        url = self.request_issue_label_url.format(issue_id, self.token, page, timeout=(300, 300))
         resp = requests.get(url, headers=self.hearder, verify=self.verify)
         if not str(resp.status_code).startswith("2"):
             raise Exception(
@@ -201,7 +201,7 @@ class GiteeRequest:
     def request_comment_issue(self, org, repo, issue_id, comment=close_issue_comment):
         url = self.request_comment_issue_url.format(org, repo, issue_id)
         body = {"access_token": self.token, "body": comment}
-        resp = requests.post(url=url, headers=self.hearder, json=body, verify=self.verify)
+        resp = requests.post(url=url, headers=self.hearder, json=body, verify=self.verify, timeout=(300, 300))
         if not str(resp.status_code).startswith("2"):
             raise Exception(
                 "[request_close_issue] request return code:{}".format(resp.status_code))
