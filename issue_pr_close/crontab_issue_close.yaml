@@ -1,0 +1,11 @@
+close_day: 14
+notify_day: 1095
+gitee_token:
+email_host:
+email_port:
+email_username:
+email_pwd:
+close_email_from: infra@mindspore.cn
+close_email_receive: 353712216@qq.com,tom_toworld@163.com,lixiangyi1@huawei.com
+notify_email_from: infra@mindspore.cn
+notify_email_receive: 353712216@qq.com,tom_toworld@163.com,lixiangyi1@huawei.com, fangwenyi@huawei.com
