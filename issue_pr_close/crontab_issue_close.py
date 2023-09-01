@@ -7,7 +7,6 @@ import copy
 import datetime
 import logging
 import os
-import shutil
 import smtplib
 import textwrap
 import time
@@ -96,29 +95,6 @@ cur_file_name = "{}.log".format(os.path.basename(__file__).split(".")[0])
 logger = Logger(cur_file_name, level='info').logger
 
 
-class EmailImplement(object):
-    def __init__(self, email_host, email_port, email_username, email_pwd):
-        self.server = smtplib.SMTP(email_host, int(email_port))
-        self.server.ehlo()
-        self.server.starttls()
-        self.server.login(email_username, email_pwd)
-
-    def send_email(self, email_from, email_receivers, subject, body_of_email):
-        if not isinstance(email_receivers, list):
-            email_receivers = [email_receivers, ]
-        content = MIMEText(body_of_email, 'html', 'utf-8')
-        msg = MIMEMultipart()
-        msg.attach(content)
-        msg['Subject'] = subject
-        msg['From'] = email_from
-        msg['To'] = ",".join(email_receivers)
-        try:
-            self.server.sendmail(email_from, email_receivers, msg.as_string())
-            logger.info('Success sent report email to: {}'.format(msg['To']))
-        except smtplib.SMTPException as e:
-            logger.error(e)
-
-
 def func_retry(retry=3, delay=1):
     def deco_retry(fn):
         @wraps(fn)
@@ -136,6 +112,30 @@ def func_retry(retry=3, delay=1):
         return inner
 
     return deco_retry
+
+
+class EmailImplement(object):
+    def __init__(self, email_host, email_port, email_username, email_pwd):
+        self.server = smtplib.SMTP(email_host, int(email_port))
+        self.server.ehlo()
+        self.server.starttls()
+        self.server.login(email_username, email_pwd)
+
+    @func_retry()
+    def send_email(self, email_from, email_receivers, subject, body_of_email):
+        if not isinstance(email_receivers, list):
+            email_receivers = [email_receivers, ]
+        content = MIMEText(body_of_email, 'html', 'utf-8')
+        msg = MIMEMultipart()
+        msg.attach(content)
+        msg['Subject'] = subject
+        msg['From'] = email_from
+        msg['To'] = ",".join(email_receivers)
+        try:
+            self.server.sendmail(email_from, email_receivers, msg.as_string())
+            logger.info('Success sent report email to: {}'.format(msg['To']))
+        except smtplib.SMTPException as e:
+            logger.error(e)
 
 
 class GiteeRequest:
@@ -405,7 +405,7 @@ def close_issue_email_notify(config_dict, close_day, need_close_issues):
 
 
 # noinspection PyTypeChecker
-def notify_issue_email_notify(config_dict, notify_day, need_notfiy_issues):
+def notify_issue_email_notify(config_dict, need_notfiy_issues):
     cleaned_info = pandas_clean(need_notfiy_issues, is_status=True)
     pd.set_option('display.width', 800)
     pd.set_option('display.max_colwidth', 150)
@@ -479,4 +479,4 @@ if __name__ == '__main__':
     logger.info("*" * 25 + "5.use email to notify the closed issue" + "*" * 25)
     close_issue_email_notify(config_content, close_day, close_issue_list)
     logger.info("*" * 25 + "6.use email to notify the notify issue" + "*" * 25)
-    notify_issue_email_notify(config_content, notify_day, notify_issue_list)
+    notify_issue_email_notify(config_content, notify_issue_list)
