@@ -7,7 +7,6 @@ import copy
 import datetime
 import logging
 import os
-import shutil
 import smtplib
 import textwrap
 import time
@@ -406,7 +405,7 @@ def close_issue_email_notify(config_dict, close_day, need_close_issues):
 
 
 # noinspection PyTypeChecker
-def notify_issue_email_notify(config_dict, notify_day, need_notfiy_issues):
+def notify_issue_email_notify(config_dict, need_notfiy_issues):
     cleaned_info = pandas_clean(need_notfiy_issues, is_status=True)
     pd.set_option('display.width', 800)
     pd.set_option('display.max_colwidth', 150)
@@ -480,4 +479,4 @@ if __name__ == '__main__':
     logger.info("*" * 25 + "5.use email to notify the closed issue" + "*" * 25)
     close_issue_email_notify(config_content, close_day, close_issue_list)
     logger.info("*" * 25 + "6.use email to notify the notify issue" + "*" * 25)
-    notify_issue_email_notify(config_content, notify_day, notify_issue_list)
+    notify_issue_email_notify(config_content, notify_issue_list)
