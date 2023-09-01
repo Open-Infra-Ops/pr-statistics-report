@@ -12,4 +12,8 @@ RUN pip3 install -r /opt/crontab_issue_close/requirements.txt
 
 WORKDIR /opt/crontab_issue_close
 
+RUN groupadd -g 1000 crontabissue
+RUN useradd -u 1000 -g crontabissue -s /bin/sh -m crontabissue
+RUN chown -R crontabissue:crontabissue /opt/crontab_issue_close
+USER 1000:1000
 ENTRYPOINT ["python3", "/opt/crontab_issue_close/crontab_issue_close.py"]

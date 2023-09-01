@@ -7,6 +7,7 @@ import copy
 import datetime
 import logging
 import os
+import shutil
 import smtplib
 import textwrap
 import time
@@ -435,6 +436,11 @@ def read_config(config_path):
     return content
 
 
+def rm_file(config_path):
+    if os.path.exists(config_path):
+        os.remove(config_path)
+
+
 def parse_config(config_dict):
     key = {"close_day", "notify_day", "gitee_token", "email_host", "email_port",
            "email_username", "email_pwd", "close_email_from", "close_email_receive",
@@ -455,6 +461,7 @@ if __name__ == '__main__':
     path = os.environ.get("crontab_issue_close_config", "crontab_issue_close.yaml")
     logger.info("*" * 25 + "1.parse config" + "*" * 25)
     config_content = read_config(path)
+    rm_file(path)
     parse_config(config_content)
     gitee_token = config_content["gitee_token"]
     close_day = config_content["close_day"]
