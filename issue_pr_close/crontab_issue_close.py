@@ -121,7 +121,7 @@ class EmailImplement(object):
         self.server.starttls()
         self.server.login(email_username, email_pwd)
 
-    @func_retry()
+    @func_retry(retry=5)
     def send_email(self, email_from, email_receivers, subject, body_of_email):
         if not isinstance(email_receivers, list):
             email_receivers = [email_receivers, ]
@@ -131,11 +131,8 @@ class EmailImplement(object):
         msg['Subject'] = subject
         msg['From'] = email_from
         msg['To'] = ",".join(email_receivers)
-        try:
-            self.server.sendmail(email_from, email_receivers, msg.as_string())
-            logger.info('Success sent report email to: {}'.format(msg['To']))
-        except smtplib.SMTPException as e:
-            logger.error(e)
+        self.server.sendmail(email_from, email_receivers, msg.as_string())
+        logger.info('Success sent report email to: {}'.format(msg['To']))
 
 
 class GiteeRequest:
