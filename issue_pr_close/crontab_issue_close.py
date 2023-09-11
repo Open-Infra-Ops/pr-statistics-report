@@ -149,7 +149,7 @@ class GiteeRequest:
             "Content-Type": "application/json",
             "charset": "UTF-8"
         }
-        self.verify = False
+        self.verify = True
 
     @func_retry()
     def request_open_issue(self, page):
@@ -461,25 +461,30 @@ def parse_config(config_dict):
 
 
 if __name__ == '__main__':
-    path = os.environ.get("crontab_issue_close_config", "crontab_issue_close.yaml")
-    logger.info("*" * 25 + "1.parse config" + "*" * 25)
-    config_content = read_config(path)
-    rm_file(path)
-    parse_config(config_content)
-    gitee_token = config_content["gitee_token"]
-    close_day = config_content["close_day"]
-    notify_day = config_content["notify_day"]
-    logger.info("*" * 25 + "2.get all issue" + "*" * 25)
-    list_all_issue = get_open_issue(gitee_token)
-    list_progressing_issue = get_progressing_issue(gitee_token)
-    list_all_issue.extend(list_progressing_issue)
-    logger.info("the all issue length:{}".format(len(list_all_issue)))
-    logger.info("*" * 25 + "3.get the close and notify issue" + "*" * 25)
-    close_issue_list, notify_issue_list = get_need_close_and_notify_issue(gitee_token, close_day, notify_day,
-                                                                          list_all_issue)
-    logger.info("*" * 25 + "4.close the close issue" + "*" * 25)
-    close_issue(gitee_token, close_issue_list)
-    logger.info("*" * 25 + "5.use email to notify the closed issue" + "*" * 25)
-    close_issue_email_notify(config_content, close_day, close_issue_list)
-    logger.info("*" * 25 + "6.use email to notify the notify issue" + "*" * 25)
-    notify_issue_email_notify(config_content, notify_issue_list)
+    tzinfo = pytz.timezone('Asia/Shanghai')
+    _, which_month, which_days = datetime.datetime.now(tz=tzinfo).isocalendar()
+    if which_month % 2 == 0 and which_days == 5:
+        path = os.environ.get("crontab_issue_close_config", "crontab_issue_close.yaml")
+        logger.info("*" * 25 + "1.parse config" + "*" * 25)
+        config_content = read_config(path)
+        rm_file(path)
+        parse_config(config_content)
+        gitee_token = config_content["gitee_token"]
+        close_day = config_content["close_day"]
+        notify_day = config_content["notify_day"]
+        logger.info("*" * 25 + "2.get all issue" + "*" * 25)
+        list_all_issue = get_open_issue(gitee_token)
+        list_progressing_issue = get_progressing_issue(gitee_token)
+        list_all_issue.extend(list_progressing_issue)
+        logger.info("the all issue length:{}".format(len(list_all_issue)))
+        logger.info("*" * 25 + "3.get the close and notify issue" + "*" * 25)
+        close_issue_list, notify_issue_list = get_need_close_and_notify_issue(gitee_token, close_day, notify_day,
+                                                                              list_all_issue)
+        logger.info("*" * 25 + "4.close the close issue" + "*" * 25)
+        close_issue(gitee_token, close_issue_list)
+        logger.info("*" * 25 + "5.use email to notify the closed issue" + "*" * 25)
+        close_issue_email_notify(config_content, close_day, close_issue_list)
+        logger.info("*" * 25 + "6.use email to notify the notify issue" + "*" * 25)
+        notify_issue_email_notify(config_content, notify_issue_list)
+    else:
+        print("The current execution time is a non-biweekly Friday:{}/{}".format(str(which_month), str(which_days)))
