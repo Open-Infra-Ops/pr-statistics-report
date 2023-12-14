@@ -1,6 +1,8 @@
-FROM openeuler/openeuler:22.03-lts-sp1
-
-MAINTAINER TomNewChao<tom_toworld@163.com>
+FROM openeuler/openeuler:22.03
+RUN python3 -m ensurepip --default-pip && python3 -m pip install --upgrade pip
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
+RUN pip config set global.timeout 120
 
 RUN mkdir -p /opt/pr-statistics
 
